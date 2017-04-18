@@ -20,7 +20,7 @@
 #  
 from PyQt4 import QtGui, QtCore
 import sys
-import layout
+import layout, layout_edit_clients
 
 
 
@@ -42,8 +42,10 @@ class Storage():
             
             with self.dbcon:
                 cursor = self.dbcon.cursor()
-                cursor.execute('''CREATE TABLE IF NOT EXISTS worked(clientId INTEGER PRIMARY KEY, dateWorkedInt text, secondsWorked float )''')
-            
+                cursor.execute('''CREATE TABLE IF NOT EXISTS clients(clientId INTEGER NOT NULL PRIMARY KEY, clientName)''')
+                cursor.execute('''CREATE TABLE IF NOT EXISTS worked(clientId integer NOT NULL, dateWorkedInt text, secondsWorked float, FOREIGN KEY (clientId) REFERENCES clients(clientId) )''')
+
+                
         except sqlite3.Error as e:
             print("Error {}:".format(e.args[0]))
             raise e
@@ -53,12 +55,33 @@ class Storage():
                 self.dbcon.close()
                 
                 
-        self.clients = { 1:'Client 1', 2:'Client 2' }
-        
+
         
         
     def getClients(self):
         #   return dictionary of client names; client ids
+        
+        import sqlite3
+        self.dbcon = None
+        self.clients = None
+        
+        try:
+            self.dbcon = sqlite3.connect('timemachine.db')
+            
+            with self.dbcon:
+                cursor = self.dbcon.cursor()
+                self.dbcon.row_factory = sqlite3.Row
+                cursor.execute('''SELECT * from clients''')
+                self.clients = cursor.fetchall()
+                
+        except sqlite3.Error as e:
+            print("Error {}:".format(e.args[0]))
+            raise e
+                
+        finally:
+            if self.dbcon:
+                self.dbcon.close()
+                        
         return self.clients
         
         
@@ -66,7 +89,25 @@ class Storage():
     def addClient(self, name):
         #   add
         #   return id?
-        pass
+        import sqlite3
+    
+        self.dbcon = None
+        
+        try:
+            self.dbcon = sqlite3.connect('timemachine.db')
+            
+            with self.dbcon:
+                cursor = self.dbcon.cursor()
+                cursor.execute("INSERT INTO clients (clientName) VALUES (?)", ([name]) )
+                
+        except sqlite3.Error as e:
+            print("Error {}:".format(e.args[0]))
+            raise e
+                
+        finally:
+            if self.dbcon:
+                self.dbcon.close()
+                
         
         
         
@@ -94,7 +135,6 @@ class Storage():
                 cursor = self.dbcon.cursor()
                 cursor.execute('''SELECT secondsWorked from worked WHERE ClientID = ? and dateWorkedInt = ?''' , ( clientId, datetime.datetime.now().strftime("%Y%m%d") ) )
                 prevWorked = cursor.fetchone()
-                print(prevWorked)
                 
                 if prevWorked is None:
                     cursor.execute('''INSERT INTO worked (clientId, dateWorkedInt, secondsWorked) VALUES (?,?,?)''', ( clientId, datetime.datetime.now().strftime("%Y%m%d"), secondsWorked ) )
@@ -167,6 +207,30 @@ class ClientTimer():
         
         
         
+class DlgEditClients(QtGui.QDialog, layout_edit_clients.Ui_dlgEditClients):
+    def __init__(self, parent=None):
+        QtGui.QDialog.__init__(self, parent)
+        self.setupUi(self)
+        self.storage = None
+        
+        
+    @QtCore.pyqtSlot()
+    def addItem(self):
+        if( len(self.inputNewClient.text()) ):
+            self.clientListWidget.addItem(self.inputNewClient.text())
+            self.storage.addClient(self.inputNewClient.text())
+
+
+    @QtCore.pyqtSlot()
+    def removeItems(self):
+        for item in self.clientListWidget.selectedItems():
+            self.clientListWidget.takeItem(self.clientListWidget.row(item))
+            #self.storage.removeClient(self.inputNewClient.text())
+                        
+    def setStorage(self, storage):
+        self.storage = storage
+        
+        
         
 
 class TimeMachineApp(QtGui.QMainWindow, layout.Ui_MainWindow):
@@ -182,13 +246,13 @@ class TimeMachineApp(QtGui.QMainWindow, layout.Ui_MainWindow):
         
         try:
             #   init storage
-            storage = Storage()
+            self.storage = Storage()
             
             #   add client buttons
-            self.setupClientButtons(storage)
+            self.setupClientButtons(self.storage)
             
             #   init timer        
-            self.clientTimer = ClientTimer(storage)
+            self.clientTimer = ClientTimer(self.storage)
             
             #   done
             self.statusBar().showMessage('Ready')
@@ -231,10 +295,10 @@ class TimeMachineApp(QtGui.QMainWindow, layout.Ui_MainWindow):
         self.verticalLayout.addWidget(clientButtonArray[0])   
         self.clientButtonGroup.addButton(clientButtonArray[0], 0)
                 
-        for clientId, clientName in storage.getClients().items():
-            print("{}:{}".format(clientId, clientName))
+        for clientId, clientName in storage.getClients():
+            #print("{}:{}".format(clientId, clientName))
             clientButtonArray.append( QtGui.QPushButton(self.verticalLayoutWidget) )
-            clientButtonArray[clientId].setText( "Client {}".format(clientId) )
+            clientButtonArray[clientId].setText( clientName )
             clientButtonArray[clientId].setCheckable(True)
             self.verticalLayout.addWidget(clientButtonArray[clientId])
             self.clientButtonGroup.addButton(clientButtonArray[clientId], clientId)
@@ -249,17 +313,17 @@ class TimeMachineApp(QtGui.QMainWindow, layout.Ui_MainWindow):
         
     @QtCore.pyqtSlot()
     def editClients(self):
-        print("editclients")
+ 
+        dlgEditClients = DlgEditClients();
+        dlgEditClients.setStorage(self.storage)
+        for clientId, clientName in self.storage.getClients():
+            dlgEditClients.clientListWidget.addItem(clientName)
         
-        import layout_edit_clients
         
-        about = QtGui.QDialog();
-        #self.setupUi(layout_edit_clients)
-        #layout_edit_clients.setupUi(about);
-        #about.setupUi(layout_edit_clients)
-        about.exec_()
-
-    
+        dlgEditClients.btnInsert.clicked.connect(dlgEditClients.addItem)
+        dlgEditClients.btnRemove.clicked.connect(dlgEditClients.removeItems)
+        
+        dlgEditClients.exec_()
 
 
 
