@@ -46,8 +46,9 @@
    </property>
    <widget class="QMenu" name="menuSetting">
     <property name="title">
-     <string>Settings</string>
+     <string>File</string>
     </property>
+    <addaction name="actionReport"/>
     <addaction name="actionEdit_Clients"/>
     <addaction name="actionExit"/>
    </widget>
@@ -67,6 +68,14 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Q</string>
+   </property>
+  </action>
+  <action name="actionReport">
+   <property name="text">
+    <string>Report</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+R</string>
    </property>
   </action>
  </widget>

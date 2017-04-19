@@ -49,6 +49,9 @@ class Ui_MainWindow(object):
         self.actionEdit_Clients.setObjectName(_fromUtf8("actionEdit_Clients"))
         self.actionExit = QtGui.QAction(MainWindow)
         self.actionExit.setObjectName(_fromUtf8("actionExit"))
+        self.actionReport = QtGui.QAction(MainWindow)
+        self.actionReport.setObjectName(_fromUtf8("actionReport"))
+        self.menuSetting.addAction(self.actionReport)
         self.menuSetting.addAction(self.actionEdit_Clients)
         self.menuSetting.addAction(self.actionExit)
         self.menubar.addAction(self.menuSetting.menuAction())
@@ -58,9 +61,11 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(_translate("MainWindow", "Time Machine", None))
-        self.menuSetting.setTitle(_translate("MainWindow", "Settings", None))
+        self.menuSetting.setTitle(_translate("MainWindow", "File", None))
         self.actionEdit_Clients.setText(_translate("MainWindow", "Client List", None))
         self.actionEdit_Clients.setShortcut(_translate("MainWindow", "Ctrl+E", None))
         self.actionExit.setText(_translate("MainWindow", "Exit", None))
         self.actionExit.setShortcut(_translate("MainWindow", "Ctrl+Q", None))
+        self.actionReport.setText(_translate("MainWindow", "Report", None))
+        self.actionReport.setShortcut(_translate("MainWindow", "Ctrl+R", None))
 

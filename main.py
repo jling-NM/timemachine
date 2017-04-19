@@ -18,12 +18,12 @@
 #  MA 02110-1301, USA.
 #  
 #  
-from PyQt4 import QtGui, QtCore
+from PyQt4 import QtGui, QtCore, uic
 import sys
 import layout, layout_edit_clients
 
 
-
+Ui_dlgReport, QtBaseClass = uic.loadUiType('layout_report.ui')
 
 
 class Storage():
@@ -99,6 +99,7 @@ class Storage():
             with self.dbcon:
                 cursor = self.dbcon.cursor()
                 cursor.execute("INSERT INTO clients (clientName) VALUES (?)", ([name]) )
+                return cursor.lastrowid
                 
         except sqlite3.Error as e:
             print("Error {}:".format(e.args[0]))
@@ -111,9 +112,42 @@ class Storage():
         
         
         
-    def removeClient(self):
-        pass
+    def removeClient(self, clientName):
+
+        import sqlite3
+    
+        self.dbcon = None
         
+        try:
+            self.dbcon = sqlite3.connect('timemachine.db')
+            
+            with self.dbcon:
+                cursor = self.dbcon.cursor()
+                # get clientId with clientName
+                cursor.execute("SELECT clientId from clients WHERE clientName = ?" , ( [clientName] ) )
+                retVal = cursor.fetchone()
+                
+                if retVal:
+                    clientId = retVal[0]
+                    
+                    print("Client to delete:{}".format(clientId))
+                
+                    # remove client records for worked table
+                    cursor.execute("DELETE FROM worked WHERE clientID = ?", ([clientId]) )
+                    
+                    # remove parent record from clients table
+                    cursor.execute("DELETE FROM clients WHERE clientID = ?", ([clientId]) )
+
+
+        except sqlite3.Error as e:
+            print("Error {}:".format(e.args[0]))
+            raise e
+                
+        finally:
+            if self.dbcon:
+                self.dbcon.close()
+        
+
         
         
     def updateTime(self, clientId, secondsWorked):
@@ -131,7 +165,6 @@ class Storage():
             with self.dbcon:
                 
                 prevWorked = 0.0
-                #db.row_factory = sqlite3.Row
                 cursor = self.dbcon.cursor()
                 cursor.execute('''SELECT secondsWorked from worked WHERE ClientID = ? and dateWorkedInt = ?''' , ( clientId, datetime.datetime.now().strftime("%Y%m%d") ) )
                 prevWorked = cursor.fetchone()
@@ -147,7 +180,40 @@ class Storage():
             print("Error {}:".format(e.args[0]))
             raise e
         
+        finally:
+            if self.dbcon:
+                self.dbcon.close()
+                
+                        
         
+    def getReport(self, dateStr):
+
+        import sqlite3
+    
+        self.dbcon = None
+        
+        try:
+            self.dbcon = sqlite3.connect('timemachine.db')
+            
+            with self.dbcon:
+                cursor = self.dbcon.cursor()
+                # get clientId with clientName
+                cursor.execute("SELECT * from worked WHERE dateWorkedInt = ?" , ( [dateStr] ) )
+                retVal = cursor.fetchall()
+                return retVal
+
+
+        except sqlite3.Error as e:
+            print("Error {}:".format(e.args[0]))
+            raise e
+                
+        finally:
+            if self.dbcon:
+                self.dbcon.close()
+        
+
+
+
 
     
     
@@ -212,26 +278,58 @@ class DlgEditClients(QtGui.QDialog, layout_edit_clients.Ui_dlgEditClients):
         QtGui.QDialog.__init__(self, parent)
         self.setupUi(self)
         self.storage = None
+        self.parent = parent
+        
+        for clientId, clientName in self.storage.getClients():
+            dlgEditClients.clientListWidget.addItem(clientName)
+        
+        
+        dlgEditClients.btnInsert.clicked.connect(dlgEditClients.addItem)
+        dlgEditClients.btnRemove.clicked.connect(dlgEditClients.removeItems)        
         
         
     @QtCore.pyqtSlot()
     def addItem(self):
         if( len(self.inputNewClient.text()) ):
             self.clientListWidget.addItem(self.inputNewClient.text())
-            self.storage.addClient(self.inputNewClient.text())
+            newClientId = self.storage.addClient(self.inputNewClient.text())
+            self.parent.addClientButton(newClientId, self.inputNewClient.text())
 
 
     @QtCore.pyqtSlot()
     def removeItems(self):
         for item in self.clientListWidget.selectedItems():
             self.clientListWidget.takeItem(self.clientListWidget.row(item))
-            #self.storage.removeClient(self.inputNewClient.text())
+            self.storage.removeClient(item.text())
+            self.parent.removeClientButton(item.text())
                         
     def setStorage(self, storage):
         self.storage = storage
         
         
+
         
+        
+class DlgReport(QtGui.QDialog, Ui_dlgReport):
+    def __init__(self, parent=None):
+        QtGui.QDialog.__init__(self)
+        self.setupUi(self)
+        self.storage = None
+        self.calendarWidget.clicked[QtCore.QDate].connect(self.generateReport)
+        
+    def setStorage(self, storage):
+        self.storage = storage
+        
+    @QtCore.pyqtSlot("QDate")
+    def generateReport(self, date):
+        #QtGui.QMessageBox.information(self,"QCalendarWidget Date Selected",date.toString("yyyyMMdd"))
+        workReport = self.storage.getReport(date.toString("yyyyMMdd"))
+        #self.lblReport.setText(date.toString("yyyyMMdd"))
+        self.lblReport.setText(workReport[0])
+        
+              
+
+            
 
 class TimeMachineApp(QtGui.QMainWindow, layout.Ui_MainWindow):
     
@@ -243,6 +341,7 @@ class TimeMachineApp(QtGui.QMainWindow, layout.Ui_MainWindow):
         QtCore.QObject.connect(self.actionExit, QtCore.SIGNAL('triggered()'), QtGui.qApp.quit)
         #self.actionEdit_Clients.triggered.connect(self.editClients)
         QtCore.QObject.connect(self.actionEdit_Clients, QtCore.SIGNAL('triggered()'), self.editClients)
+        QtCore.QObject.connect(self.actionReport, QtCore.SIGNAL('triggered()'), self.report)
         
         try:
             #   init storage
@@ -265,7 +364,6 @@ class TimeMachineApp(QtGui.QMainWindow, layout.Ui_MainWindow):
       
     @QtCore.pyqtSlot(int)
     def clientButtonGroupToggled(self, clientId):
-        print("client toggled:{}".format(clientId) )
         self.clientTimer.update(clientId)
 
 
@@ -296,7 +394,6 @@ class TimeMachineApp(QtGui.QMainWindow, layout.Ui_MainWindow):
         self.clientButtonGroup.addButton(clientButtonArray[0], 0)
                 
         for clientId, clientName in storage.getClients():
-            #print("{}:{}".format(clientId, clientName))
             clientButtonArray.append( QtGui.QPushButton(self.verticalLayoutWidget) )
             clientButtonArray[clientId].setText( clientName )
             clientButtonArray[clientId].setCheckable(True)
@@ -310,25 +407,54 @@ class TimeMachineApp(QtGui.QMainWindow, layout.Ui_MainWindow):
              
 
 
+
+    def addClientButton(self, clientId, clientName):
+        
+        btn = QtGui.QPushButton(self.verticalLayoutWidget)
+        btn.setText( clientName )
+        btn.setCheckable(True)        
+        self.verticalLayout.addWidget(btn)
+        self.clientButtonGroup.addButton(btn, clientId)        
+        
+        
+    def removeClientButton(self, clientName):
+        
+        for i in reversed(range(self.verticalLayout.count())): 
+            widgetToRemove = self.verticalLayout.itemAt( i ).widget()
+            if( widgetToRemove.text() == clientName ):
+                # remove it from the layout list
+                self.verticalLayout.removeWidget( widgetToRemove )
+                # remove it from the gui
+                widgetToRemove.setParent( None )
+
+        
+        
         
     @QtCore.pyqtSlot()
     def editClients(self):
  
-        dlgEditClients = DlgEditClients();
+        dlgEditClients = DlgEditClients(self);
         dlgEditClients.setStorage(self.storage)
-        for clientId, clientName in self.storage.getClients():
-            dlgEditClients.clientListWidget.addItem(clientName)
+        #for clientId, clientName in self.storage.getClients():
+            #dlgEditClients.clientListWidget.addItem(clientName)
         
         
-        dlgEditClients.btnInsert.clicked.connect(dlgEditClients.addItem)
-        dlgEditClients.btnRemove.clicked.connect(dlgEditClients.removeItems)
+        #dlgEditClients.btnInsert.clicked.connect(dlgEditClients.addItem)
+        #dlgEditClients.btnRemove.clicked.connect(dlgEditClients.removeItems)
         
         dlgEditClients.exec_()
 
 
 
 
-
+    @QtCore.pyqtSlot()
+    def report(self):
+        dlgReport = DlgReport(self);
+        dlgReport.setStorage(self.storage)
+        dlgReport.exec_()
+        
+        
+        
         
         
     
