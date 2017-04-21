@@ -1,0 +1,7 @@
+<RCC>
+  <qresource prefix="images">
+    <file alias='timemachine_64x64.png'>images/timemachine_64x64.png</file>
+    <file alias='timemachine_32x32.png'>images/timemachine_32x32.png</file>
+    <file alias='timemachine_16x16.png'>images/timemachine_16x16.png</file>
+  </qresource>
+</RCC>
