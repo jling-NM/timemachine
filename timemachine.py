@@ -33,11 +33,29 @@ class Storage:
     Data interface
     """
 
+    class DbConCursor(object):
+        """
+        Context manager for database connection cursor
+        """
+        def __init__(self):
+            import sqlite3
+            try:
+                self.dbcon = sqlite3.connect('timemachine.db')
+            except sqlite3.Error as e:
+                raise e
+
+        def __enter__(self):
+            return self.dbcon.cursor()
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if self.dbcon:
+                self.dbcon.commit()
+                self.dbcon.close()
+
+
+
     def __init__(self):
-
         import sqlite3
-
-        self.dbcon = None
 
         try:
             self.dbcon = sqlite3.connect('timemachine.db')
@@ -54,35 +72,22 @@ class Storage:
             print("Error {}:".format(e.args[0]))
             raise e
 
-        finally:
-            if self.dbcon:
-                self.dbcon.close()
 
     def get_clients(self):
-        #   return dictionary of client names; client ids
-
+        """
+        :return: dictionary of client names; client ids
+        """
         import sqlite3
-        self.dbcon = None
-        self.clients = None
 
         try:
-            self.dbcon = sqlite3.connect('timemachine.db')
+            with self.DbConCursor() as dbc:
+                dbc.row_factory = sqlite3.Row
+                dbc.execute('''xSELECT * from clients''')
+                clients = dbc.fetchall()
+                return clients
+        except Exception as e:
+            print("Storage error: {}".format(e))
 
-            with self.dbcon:
-                cursor = self.dbcon.cursor()
-                self.dbcon.row_factory = sqlite3.Row
-                cursor.execute('''SELECT * from clients''')
-                self.clients = cursor.fetchall()
-
-        except sqlite3.Error as e:
-            print("Error {}:".format(e.args[0]))
-            raise e
-
-        finally:
-            if self.dbcon:
-                self.dbcon.close()
-
-        return self.clients
 
     def add_client(self, client_name):
         """
@@ -90,26 +95,12 @@ class Storage:
         :param client_name: 
         :return: new client_id
         """
+        with self.DbConCursor() as dbc:
+            dbc.execute("INSERT INTO clients (clientName) VALUES (?)", ([client_name]))
+            new_client_id = dbc.lastrowid
 
-        import sqlite3
+        return new_client_id
 
-        self.dbcon = None
-
-        try:
-            self.dbcon = sqlite3.connect('timemachine.db')
-
-            with self.dbcon:
-                cursor = self.dbcon.cursor()
-                cursor.execute("INSERT INTO clients (clientName) VALUES (?)", ([client_name]))
-                return cursor.lastrowid
-
-        except sqlite3.Error as e:
-            print("Error {}:".format(e.args[0]))
-            raise e
-
-        finally:
-            if self.dbcon:
-                self.dbcon.close()
 
     def remove_client(self, client_name):
         """
@@ -117,37 +108,18 @@ class Storage:
         :param client_name: 
         :return: nothing
         """
+        with self.DbConCursor() as dbc:
+            # get clientId with clientName
+            dbc.execute("SELECT clientId from clients WHERE clientName = ?", ([client_name]))
+            ret_val = dbc.fetchone()
 
-        import sqlite3
+            if ret_val:
+                client_id = ret_val[0]
+                # remove client records for worked table
+                dbc.execute("DELETE FROM worked WHERE clientID = ?", ([client_id]))
+                # remove parent record from clients table
+                dbc.execute("DELETE FROM clients WHERE clientID = ?", ([client_id]))
 
-        self.dbcon = None
-
-        try:
-            self.dbcon = sqlite3.connect('timemachine.db')
-
-            with self.dbcon:
-                cursor = self.dbcon.cursor()
-                # get clientId with clientName
-                cursor.execute("SELECT clientId from clients WHERE clientName = ?", ([client_name]))
-                ret_val = cursor.fetchone()
-
-                if ret_val:
-                    client_id = ret_val[0]
-
-                    # remove client records for worked table
-                    cursor.execute("DELETE FROM worked WHERE clientID = ?", ([client_id]))
-
-                    # remove parent record from clients table
-                    cursor.execute("DELETE FROM clients WHERE clientID = ?", ([client_id]))
-
-
-        except sqlite3.Error as e:
-            print("Error {}:".format(e.args[0]))
-            raise e
-
-        finally:
-            if self.dbcon:
-                self.dbcon.close()
 
     def update_time(self, client_id, seconds_worked):
         """
@@ -156,37 +128,21 @@ class Storage:
         :param seconds_worked: 
         :return: nothing
         """
+        import datetime
+        with self.DbConCursor() as dbc:
+            dbc.execute('''SELECT secondsWorked from worked 
+                              WHERE ClientID = ? and dateWorkedInt = ?''',
+                           (client_id, datetime.datetime.now().strftime("%Y%m%d")))
+            prev_worked = dbc.fetchone()
 
-        import sqlite3, datetime
+            if prev_worked is None:
+                dbc.execute('''INSERT INTO worked (clientId, dateWorkedInt, secondsWorked) 
+                               VALUES (?,?,?)''',
+                               (client_id, datetime.datetime.now().strftime("%Y%m%d"), seconds_worked))
+            else:
+                dbc.execute('''UPDATE worked SET secondsWorked = ? WHERE ClientID = ? and dateWorkedInt = ?''', (
+                    (prev_worked[0] + seconds_worked), client_id, datetime.datetime.now().strftime("%Y%m%d")))
 
-        try:
-
-            self.dbcon = sqlite3.connect('timemachine.db')
-
-            with self.dbcon:
-
-                cursor = self.dbcon.cursor()
-                cursor.execute('''SELECT secondsWorked from worked 
-                                  WHERE ClientID = ? and dateWorkedInt = ?''',
-                               (client_id, datetime.datetime.now().strftime("%Y%m%d")))
-                prev_worked = cursor.fetchone()
-
-                if prev_worked is None:
-                    cursor.execute('''INSERT INTO worked (clientId, dateWorkedInt, secondsWorked) 
-                                      VALUES (?,?,?)''',
-                                   (client_id, datetime.datetime.now().strftime("%Y%m%d"), seconds_worked))
-                else:
-                    cursor.execute('''UPDATE worked SET secondsWorked = ? WHERE ClientID = ? and dateWorkedInt = ?''', (
-                        (prev_worked[0] + seconds_worked), client_id, datetime.datetime.now().strftime("%Y%m%d")))
-
-
-        except sqlite3.Error as e:
-            print("Error {}:".format(e.args[0]))
-            raise e
-
-        finally:
-            if self.dbcon:
-                self.dbcon.close()
 
     def update_client(self, client_id, client_name):
         """
@@ -195,25 +151,9 @@ class Storage:
         :param client_name: 
         :return: void
         """
-        import sqlite3
+        with self.DbConCursor() as dbc:
+            dbc.execute("UPDATE clients SET clientName = ? WHERE clientId = ?", ([client_name, client_id]))
 
-        self.dbcon = None
-
-        try:
-            self.dbcon = sqlite3.connect('timemachine.db')
-
-            with self.dbcon:
-                cursor = self.dbcon.cursor()
-                cursor.execute("UPDATE clients SET clientName = ? WHERE clientId = ?", ([client_name, client_id]))
-
-
-        except sqlite3.Error as e:
-            print("Error {}:".format(e.args[0]))
-            raise e
-
-        finally:
-            if self.dbcon:
-                self.dbcon.close()
 
     def get_report(self, date_str):
         """
@@ -221,32 +161,15 @@ class Storage:
         :param date_str: 
         :return: list of records
         """
-        import sqlite3
+        with self.DbConCursor() as dbc:
+            # get clientId with clientName
+            dbc.execute("""SELECT clients.clientName, (worked.secondsWorked/3600), 
+                              (SELECT SUM(worked.secondsWorked/3600) FROM worked WHERE dateWorkedInt = ?) AS totalHours 
+                              FROM clients INNER JOIN worked ON clients.clientId = worked.clientId 
+                              WHERE worked.dateWorkedInt = ?""", (date_str, date_str))
 
-        self.dbcon = None
-
-        try:
-            self.dbcon = sqlite3.connect('timemachine.db')
-
-            with self.dbcon:
-                cursor = self.dbcon.cursor()
-                # get clientId with clientName
-                cursor.execute("""SELECT clients.clientName, (worked.secondsWorked/3600), 
-                                  (SELECT SUM(worked.secondsWorked/3600) FROM worked WHERE dateWorkedInt = ?) AS totalHours 
-                                  FROM clients INNER JOIN worked ON clients.clientId = worked.clientId 
-                                  WHERE worked.dateWorkedInt = ?""", (date_str, date_str))
-
-                ret_val = cursor.fetchall()
-                return ret_val
-
-
-        except sqlite3.Error as e:
-            print("Error {}:".format(e.args[0]))
-            raise e
-
-        finally:
-            if self.dbcon:
-                self.dbcon.close()
+            ret_val = dbc.fetchall()
+            return ret_val
 
 
 class ClientTimer:
@@ -411,32 +334,25 @@ class TimeMachineApp(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super(TimeMachineApp, self).__init__(parent)
         self.setupUi(self)
-
-        # QtCore.QObject.connect(self.actionExit, QtCore.SIGNAL('triggered()'), QtWidgets.qApp.quit)
-        # QtCore.QObject.connect(self.actionEdit_Clients, QtCore.SIGNAL('triggered()'), self.edit_clients)
-        # QtCore.QObject.connect(self.actionReport, QtCore.SIGNAL('triggered()'), self.report)
-
         self.actionExit.triggered.connect(QtWidgets.qApp.quit)
         self.actionEdit_Clients.triggered.connect(self.edit_clients)
         self.actionReport.triggered.connect(self.report)
 
 
-        try:
-            #   init storage
-            self.storage = Storage()
+        # init storage
+        self.storage = Storage()
 
-            #   add client buttons
-            self.setup_client_buttons(self.storage)
+        # add client buttons
+        self.setup_client_buttons(self.storage)
 
-            #   init timer
-            self.clientTimer = ClientTimer(self.storage)
+        # init timer
+        self.clientTimer = ClientTimer(self.storage)
 
-            #   done
-            self.statusBar().showMessage('Ready')
+        # done
+        self.statusBar().showMessage('Ready')
 
-        except Exception as e:
-            print(e)
-            sys.exit(1)
+
+
 
     @QtCore.pyqtSlot(int)
     def client_button_group_toggled(self, client_id):
@@ -567,7 +483,11 @@ def main():
     app.setStyle("plastique")
     form = TimeMachineApp()
     app.aboutToQuit.connect(form.close)
-    form.show()
+    try:
+        form.show()
+    except Exception as e:
+        QtWidgets.QMessageBox.information("QCalendarWidget Date Selected", e)
+
     sys.exit(app.exec_())
 
 
