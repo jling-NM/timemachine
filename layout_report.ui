@@ -13,6 +13,10 @@
   <property name="windowTitle">
    <string>Report</string>
   </property>
+  <property name="windowIcon">
+   <iconset resource="timemachine.qrc">
+    <normaloff>:/images/timemachine_16x16.png</normaloff>:/images/timemachine_16x16.png</iconset>
+  </property>
   <property name="modal">
    <bool>true</bool>
   </property>
@@ -29,7 +33,7 @@
     <enum>Qt::Vertical</enum>
    </property>
    <property name="standardButtons">
-    <set>QDialogButtonBox::Close</set>
+    <set>QDialogButtonBox::Ok</set>
    </property>
   </widget>
   <widget class="QFrame" name="frame">
@@ -112,7 +116,9 @@
    </widget>
   </widget>
  </widget>
- <resources/>
+ <resources>
+  <include location="timemachine.qrc"/>
+ </resources>
  <connections>
   <connection>
    <sender>buttonBox</sender>
@@ -126,22 +132,6 @@
     </hint>
     <hint type="destinationlabel">
      <x>157</x>
-     <y>274</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>buttonBox</sender>
-   <signal>rejected()</signal>
-   <receiver>dlgReport</receiver>
-   <slot>reject()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>316</x>
-     <y>260</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>286</x>
      <y>274</y>
     </hint>
    </hints>

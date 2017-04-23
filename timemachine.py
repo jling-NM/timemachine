@@ -18,9 +18,9 @@
 #  MA 02110-1301, USA.
 #  
 #  
-from PyQt4 import QtGui, QtCore, uic
+from PyQt5 import QtWidgets, QtGui, QtCore, uic
 import sys
-#import layout_main, layout_edit_clients
+
 
 
 Ui_MainWindow, QtBaseClass = uic.loadUiType('layout_main.ui')
@@ -28,242 +28,241 @@ Ui_dlgEditClients, QtBaseClass = uic.loadUiType('layout_edit_clients.ui')
 Ui_dlgReport, QtBaseClass = uic.loadUiType('layout_report.ui')
 
 
-
-
-class Storage():
+class Storage:
     """
-    This will be the data interface
+    Data interface
     """
-    
+
     def __init__(self):
-    
+
         import sqlite3
-    
+
         self.dbcon = None
-        
+
         try:
             self.dbcon = sqlite3.connect('timemachine.db')
-            
+
             with self.dbcon:
                 cursor = self.dbcon.cursor()
-                cursor.execute('''CREATE TABLE IF NOT EXISTS clients(clientId INTEGER NOT NULL PRIMARY KEY, clientName)''')
-                cursor.execute('''CREATE TABLE IF NOT EXISTS worked(clientId integer NOT NULL, dateWorkedInt text, secondsWorked float, FOREIGN KEY (clientId) REFERENCES clients(clientId) )''')
+                cursor.execute('''CREATE TABLE IF NOT EXISTS 
+                                  clients(clientId INTEGER NOT NULL PRIMARY KEY, clientName)''')
+                cursor.execute('''CREATE TABLE IF NOT EXISTS 
+                                  worked(clientId integer NOT NULL, dateWorkedInt text, secondsWorked float, 
+                                  FOREIGN KEY (clientId) REFERENCES clients(clientId) )''')
 
-                
         except sqlite3.Error as e:
             print("Error {}:".format(e.args[0]))
             raise e
-                
+
         finally:
             if self.dbcon:
                 self.dbcon.close()
-                
-                
 
-        
-        
-    def getClients(self):
+    def get_clients(self):
         #   return dictionary of client names; client ids
-        
+
         import sqlite3
         self.dbcon = None
         self.clients = None
-        
+
         try:
             self.dbcon = sqlite3.connect('timemachine.db')
-            
+
             with self.dbcon:
                 cursor = self.dbcon.cursor()
                 self.dbcon.row_factory = sqlite3.Row
                 cursor.execute('''SELECT * from clients''')
                 self.clients = cursor.fetchall()
-                
+
         except sqlite3.Error as e:
             print("Error {}:".format(e.args[0]))
             raise e
-                
+
         finally:
             if self.dbcon:
                 self.dbcon.close()
-                        
+
         return self.clients
-        
-        
-        
-    def addClient(self, name):
-        #   add
-        #   return id?
-        import sqlite3
-    
-        self.dbcon = None
-        
-        try:
-            self.dbcon = sqlite3.connect('timemachine.db')
-            
-            with self.dbcon:
-                cursor = self.dbcon.cursor()
-                cursor.execute("INSERT INTO clients (clientName) VALUES (?)", ([name]) )
-                return cursor.lastrowid
-                
-        except sqlite3.Error as e:
-            print("Error {}:".format(e.args[0]))
-            raise e
-                
-        finally:
-            if self.dbcon:
-                self.dbcon.close()
-                
-        
-        
-        
-    def removeClient(self, clientName):
+
+    def add_client(self, client_name):
+        """
+        Add client
+        :param client_name: 
+        :return: new client_id
+        """
 
         import sqlite3
-    
+
         self.dbcon = None
-        
+
         try:
             self.dbcon = sqlite3.connect('timemachine.db')
-            
+
+            with self.dbcon:
+                cursor = self.dbcon.cursor()
+                cursor.execute("INSERT INTO clients (clientName) VALUES (?)", ([client_name]))
+                return cursor.lastrowid
+
+        except sqlite3.Error as e:
+            print("Error {}:".format(e.args[0]))
+            raise e
+
+        finally:
+            if self.dbcon:
+                self.dbcon.close()
+
+    def remove_client(self, client_name):
+        """
+        Remove client
+        :param client_name: 
+        :return: nothing
+        """
+
+        import sqlite3
+
+        self.dbcon = None
+
+        try:
+            self.dbcon = sqlite3.connect('timemachine.db')
+
             with self.dbcon:
                 cursor = self.dbcon.cursor()
                 # get clientId with clientName
-                cursor.execute("SELECT clientId from clients WHERE clientName = ?" , ( [clientName] ) )
-                retVal = cursor.fetchone()
-                
-                if retVal:
-                    clientId = retVal[0]
-                
+                cursor.execute("SELECT clientId from clients WHERE clientName = ?", ([client_name]))
+                ret_val = cursor.fetchone()
+
+                if ret_val:
+                    client_id = ret_val[0]
+
                     # remove client records for worked table
-                    cursor.execute("DELETE FROM worked WHERE clientID = ?", ([clientId]) )
-                    
+                    cursor.execute("DELETE FROM worked WHERE clientID = ?", ([client_id]))
+
                     # remove parent record from clients table
-                    cursor.execute("DELETE FROM clients WHERE clientID = ?", ([clientId]) )
+                    cursor.execute("DELETE FROM clients WHERE clientID = ?", ([client_id]))
 
 
         except sqlite3.Error as e:
             print("Error {}:".format(e.args[0]))
             raise e
-                
+
         finally:
             if self.dbcon:
                 self.dbcon.close()
-        
 
-        
-        
-    def updateTime(self, clientId, secondsWorked):
+    def update_time(self, client_id, seconds_worked):
         """
-        save time data???
+        Update time worked for client
+        :param client_id: 
+        :param seconds_worked: 
+        :return: nothing
         """
 
         import sqlite3, datetime
-        
+
         try:
-            
+
             self.dbcon = sqlite3.connect('timemachine.db')
-            
+
             with self.dbcon:
-                
-                prevWorked = 0.0
+
                 cursor = self.dbcon.cursor()
-                cursor.execute('''SELECT secondsWorked from worked WHERE ClientID = ? and dateWorkedInt = ?''' , ( clientId, datetime.datetime.now().strftime("%Y%m%d") ) )
-                prevWorked = cursor.fetchone()
-                
-                if prevWorked is None:
-                    cursor.execute('''INSERT INTO worked (clientId, dateWorkedInt, secondsWorked) VALUES (?,?,?)''', ( clientId, datetime.datetime.now().strftime("%Y%m%d"), secondsWorked ) )
+                cursor.execute('''SELECT secondsWorked from worked 
+                                  WHERE ClientID = ? and dateWorkedInt = ?''',
+                               (client_id, datetime.datetime.now().strftime("%Y%m%d")))
+                prev_worked = cursor.fetchone()
+
+                if prev_worked is None:
+                    cursor.execute('''INSERT INTO worked (clientId, dateWorkedInt, secondsWorked) 
+                                      VALUES (?,?,?)''',
+                                   (client_id, datetime.datetime.now().strftime("%Y%m%d"), seconds_worked))
                 else:
-                    cursor.execute('''UPDATE worked SET secondsWorked = ? WHERE ClientID = ? and dateWorkedInt = ?''', ( (prevWorked[0] + secondsWorked), clientId, datetime.datetime.now().strftime("%Y%m%d") ) )
-                    
-                    
+                    cursor.execute('''UPDATE worked SET secondsWorked = ? WHERE ClientID = ? and dateWorkedInt = ?''', (
+                        (prev_worked[0] + seconds_worked), client_id, datetime.datetime.now().strftime("%Y%m%d")))
+
+
         except sqlite3.Error as e:
             print("Error {}:".format(e.args[0]))
             raise e
-        
+
         finally:
             if self.dbcon:
                 self.dbcon.close()
-                
 
-    def updateClient(self, clientId, clientName):
-
+    def update_client(self, client_id, client_name):
+        """
+        Update client name
+        :param client_id: 
+        :param client_name: 
+        :return: void
+        """
         import sqlite3
-    
+
         self.dbcon = None
-        
+
         try:
             self.dbcon = sqlite3.connect('timemachine.db')
-            
+
             with self.dbcon:
                 cursor = self.dbcon.cursor()
-                cursor.execute("UPDATE clients SET clientName = ? WHERE clientId = ?" , ( [clientName, clientId] ) )
+                cursor.execute("UPDATE clients SET clientName = ? WHERE clientId = ?", ([client_name, client_id]))
 
 
         except sqlite3.Error as e:
             print("Error {}:".format(e.args[0]))
             raise e
-                
+
         finally:
             if self.dbcon:
                 self.dbcon.close()
-                
-                                        
-        
-    def getReport(self, dateStr):
 
+    def get_report(self, date_str):
+        """
+        Get worked data for date string
+        :param date_str: 
+        :return: list of records
+        """
         import sqlite3
-    
+
         self.dbcon = None
-        
+
         try:
             self.dbcon = sqlite3.connect('timemachine.db')
-            
+
             with self.dbcon:
                 cursor = self.dbcon.cursor()
                 # get clientId with clientName
-                #cursor.execute("SELECT clients.clientName, (worked.secondsWorked/3600), sum(worked.secondsWorked) from worked INNER JOIN clients ON worked.clientId = clients.clientId WHERE worked.dateWorkedInt = ?" , ( [dateStr] ) )
                 cursor.execute("""SELECT clients.clientName, (worked.secondsWorked/3600), 
                                   (SELECT SUM(worked.secondsWorked/3600) FROM worked WHERE dateWorkedInt = ?) AS totalHours 
                                   FROM clients INNER JOIN worked ON clients.clientId = worked.clientId 
-                                  WHERE worked.dateWorkedInt = ?""", ( dateStr, dateStr ) )
-                
-                retVal = cursor.fetchall()
-                return retVal
+                                  WHERE worked.dateWorkedInt = ?""", (date_str, date_str))
+
+                ret_val = cursor.fetchall()
+                return ret_val
 
 
         except sqlite3.Error as e:
             print("Error {}:".format(e.args[0]))
             raise e
-                
+
         finally:
             if self.dbcon:
                 self.dbcon.close()
-        
 
 
-
-
-    
-    
-class ClientTimer():
-    
+class ClientTimer:
     """
-    This handles timing
+    Timer for hours worked
     """
-    
     def __init__(self, storage):
-        
-        self.storage = storage
-        self.activeClientId = 0   # who we are timing
-        self.datetimeStart  = 0.0 # when we started
 
-        
-        
-    def update(self, clientId):
-        
+        self.storage = storage
+        self.activeClientId = 0  # who we are timing
+        self.datetimeStart = 0.0  # when we started
+
+    def update(self, client_id):
         """
         Update Timer
-        
+
         if clientId is 0 the timer should go off on active client
             b) storage.write(activeClientId, minutes(now - start time))
             c) start time = 0
@@ -273,7 +272,7 @@ class ClientTimer():
                 a) start time = now
                 b) activeClientId = clientId
                 c) storage.write
-                
+
             else need to switch clients
                 a) storage.write(activeClientId, minutes(now - start time)
                 b) start time = now
@@ -283,293 +282,295 @@ class ClientTimer():
         import datetime
 
         #   save
-        if( self.activeClientId != 0 ):
-            self.storage.updateTime(self.activeClientId, (datetime.datetime.now() - self.datetimeStart).total_seconds() )
-        
-        #   update timer values
-        if(clientId == 0):
+        if self.activeClientId != 0:
+            self.storage.update_time(self.activeClientId,
+                                     (datetime.datetime.now() - self.datetimeStart).total_seconds())
+
+        # update timer values
+        if client_id == 0:
             self.datetimeStart = 0
-            self.activeClientId = 0               
+            self.activeClientId = 0
         else:
-            #if( self.activeClientId != 0 ):
-            #    self.storage.updateTime(self.activeClientId, (datetime.datetime.now() - self.datetimeStart).total_seconds() )
             self.datetimeStart = datetime.datetime.now()
-            self.activeClientId = clientId            
-        
-        
-        
+            self.activeClientId = client_id
+
     def close(self):
         """
         Close down timer and save
         """
-        
+
         import datetime
-        
-        if( self.activeClientId != 0 ):
-            self.storage.updateTime(self.activeClientId, (datetime.datetime.now() - self.datetimeStart).total_seconds() )
+
+        if self.activeClientId != 0:
+            self.storage.update_time(self.activeClientId,
+                                     (datetime.datetime.now() - self.datetimeStart).total_seconds())
         self.datetimeStart = 0
-        self.activeClientId = 0        
-        
-        
-        
-        
-        
-class DlgEditClients(QtGui.QDialog, Ui_dlgEditClients):
+        self.activeClientId = 0
+
+
+class DlgEditClients(QtWidgets.QDialog, Ui_dlgEditClients):
+    """
+    Dialog for editing clients
+    """
     def __init__(self, parent=None):
-        QtGui.QDialog.__init__(self, parent)
+        QtWidgets.QDialog.__init__(self, parent)
         self.setupUi(self)
         self.storage = parent.storage
-        
-        for clientId, clientName in self.storage.getClients():
-            item = QtGui.QListWidgetItem(clientName)
+
+        for clientId, clientName in self.storage.get_clients():
+            item = QtWidgets.QListWidgetItem(clientName)
             item.setData(QtCore.Qt.UserRole, clientId)
             item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
             self.clientListWidget.addItem(item)
-        
-        
-        self.btnInsert.clicked.connect(self.addItem)
-        self.btnRemove.clicked.connect(self.removeItems)       
-        self.clientListWidget.itemDoubleClicked[QtGui.QListWidgetItem].connect(self.editItem)
-        self.clientListWidget.itemChanged[QtGui.QListWidgetItem].connect(self.saveChangedItem)
 
+        self.btnInsert.clicked.connect(self.add_item)
+        self.btnRemove.clicked.connect(self.remove_items)
+        self.clientListWidget.itemDoubleClicked[QtWidgets.QListWidgetItem].connect(self.edit_item)
+        self.clientListWidget.itemChanged[QtWidgets.QListWidgetItem].connect(self.save_changed_item)
 
+    @QtCore.pyqtSlot(QtWidgets.QListWidgetItem)
+    def save_changed_item(self, current_item):
+        """
+        Save inline edit of client name
+        :param current_item: 
+        :return: 
+        """
+        client_id = current_item.data(QtCore.Qt.UserRole)
+        new_client_name = current_item.text()
 
-    @QtCore.pyqtSlot(QtGui.QListWidgetItem)
-    def saveChangedItem(self, currentItem):
-        clientId = currentItem.data(QtCore.Qt.UserRole)
-        newClientName = currentItem.text()
+        self.storage.update_client(client_id, new_client_name)
+        self.parentWidget().update_client_button(client_id, new_client_name)
 
-        self.storage.updateClient( clientId, newClientName )
-        self.parentWidget().updateClientButton(clientId, newClientName)
-
-        
-        
-    @QtCore.pyqtSlot(QtGui.QListWidgetItem)
-    def editItem(self, item):
+    @QtCore.pyqtSlot(QtWidgets.QListWidgetItem)
+    def edit_item(self, item):
+        """
+        Bring up inline editor in listwidget
+        :param item: 
+        :return: 
+        """
         self.clientListWidget.editItem(item)
 
-        
-                
     @QtCore.pyqtSlot()
-    def addItem(self):
-        if( len(self.inputNewClient.text()) ):
+    def add_item(self):
+        """
+        Add new client
+        :return: 
+        """
+        if len(self.inputNewClient.text()):
             self.clientListWidget.addItem(self.inputNewClient.text())
-            newClientId = self.storage.addClient(self.inputNewClient.text())
-            self.parentWidget().addClientButton(newClientId, self.inputNewClient.text())
-
-
+            new_client_id = self.storage.add_client(self.inputNewClient.text())
+            self.parentWidget().add_client_button(new_client_id, self.inputNewClient.text())
 
     @QtCore.pyqtSlot()
-    def removeItems(self):
+    def remove_items(self):
+        """
+        Remove selected clients
+        :return: 
+        """
         for item in self.clientListWidget.selectedItems():
             self.clientListWidget.takeItem(self.clientListWidget.row(item))
-            self.storage.removeClient(item.text())
-            self.parentWidget().removeClientButton(item.text())
-                        
+            self.storage.remove_client(item.text())
+            self.parentWidget().remove_client_button(item.text())
 
-        
 
-        
-        
-class DlgReport(QtGui.QDialog, Ui_dlgReport):
+
+class DlgReport(QtWidgets.QDialog, Ui_dlgReport):
+    """
+    Dialog for viewing work report
+    """
     def __init__(self, parent=None):
-        QtGui.QDialog.__init__(self)
+        QtWidgets.QDialog.__init__(self)
         self.setupUi(self)
         self.storage = parent.storage
-        self.calendarWidget.clicked[QtCore.QDate].connect(self.generateReport)
-        
+        self.calendarWidget.clicked[QtCore.QDate].connect(self.generate_report)
 
     @QtCore.pyqtSlot("QDate")
-    def generateReport(self, date):
-        #QtGui.QMessageBox.information(self,"QCalendarWidget Date Selected",date.toString("yyyyMMdd"))
-        workReport = self.storage.getReport(date.toString("yyyyMMdd"))
-        
-        if len(workReport):
+    def generate_report(self, date):
+        """
+        Display work for date
+        :param date: 
+        :return: 
+        """
+        # QtWidgets.QMessageBox.information(self,"QCalendarWidget Date Selected",date.toString("yyyyMMdd"))
+        work_report = self.storage.get_report(date.toString("yyyyMMdd"))
+
+        if len(work_report):
             self.lblReport.setText("")
-            #totalHours = 0
-            for clientName, hoursWorked, totalHours in workReport:
+            for clientName, hoursWorked, totalHours in work_report:
                 self.lblReport.setText(self.lblReport.text() + "{} : {:04.2f} hours\n".format(clientName, hoursWorked))
-                
-            self.lblReport.setText(self.lblReport.text() + "======================\nTotal : {:04.2f}\n".format(totalHours))
-            
+
+            self.lblReport.setText(
+                self.lblReport.text() + "======================\nTotal : {:04.2f}\n".format(totalHours))
+
         else:
-            self.lblReport.setText("No work data for "+date.toString())
-              
+            self.lblReport.setText("No work data for " + date.toString())
 
-            
 
-class TimeMachineApp(QtGui.QMainWindow, Ui_MainWindow):
-    
+
+class TimeMachineApp(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super(TimeMachineApp, self).__init__(parent)
         self.setupUi(self)
-        
-        #self.actionExit.triggered.connect(QtGui.qApp.quit)
-        QtCore.QObject.connect(self.actionExit, QtCore.SIGNAL('triggered()'), QtGui.qApp.quit)
-        #self.actionEdit_Clients.triggered.connect(self.editClients)
-        QtCore.QObject.connect(self.actionEdit_Clients, QtCore.SIGNAL('triggered()'), self.editClients)
-        QtCore.QObject.connect(self.actionReport, QtCore.SIGNAL('triggered()'), self.report)
-        
-        
+
+        # QtCore.QObject.connect(self.actionExit, QtCore.SIGNAL('triggered()'), QtWidgets.qApp.quit)
+        # QtCore.QObject.connect(self.actionEdit_Clients, QtCore.SIGNAL('triggered()'), self.edit_clients)
+        # QtCore.QObject.connect(self.actionReport, QtCore.SIGNAL('triggered()'), self.report)
+
+        self.actionExit.triggered.connect(QtWidgets.qApp.quit)
+        self.actionEdit_Clients.triggered.connect(self.edit_clients)
+        self.actionReport.triggered.connect(self.report)
+
+
         try:
             #   init storage
             self.storage = Storage()
-            
+
             #   add client buttons
-            self.setupClientButtons(self.storage)
-            
-            #   init timer        
+            self.setup_client_buttons(self.storage)
+
+            #   init timer
             self.clientTimer = ClientTimer(self.storage)
-            
+
             #   done
             self.statusBar().showMessage('Ready')
-          
+
         except Exception as e:
             print(e)
             sys.exit(1)
-            
-            
-      
+
     @QtCore.pyqtSlot(int)
-    def clientButtonGroupToggled(self, clientId):
+    def client_button_group_toggled(self, client_id):
         """
-        Respond to client change
+        Respond to client button change
         """
-        self.clientTimer.update(clientId)
-        if clientId != 0:
+        self.clientTimer.update(client_id)
+        if client_id != 0:
             self.statusBar().showMessage('Timer Started')
         else:
             self.statusBar().showMessage('Timer Stopped')
 
-
-      
-    def setupClientButtons(self, storage):
+    def setup_client_buttons(self, storage):
         """
         Client buttons must be dynamic
         This is a function that clears the client buttons if needed
         then adds client buttons to the form
         """
 
-        
-        #####   add client buttons from storage list #####
+        # ####   add client buttons from storage list #####
 
         #   init logical container for client buttons; not sure if this is worth the trouble except for id feature
-        self.clientButtonGroup = QtGui.QButtonGroup(self)
+        self.clientButtonGroup = QtWidgets.QButtonGroup(self)
 
         #   add buttons to layout and logical contaner
         clientButtonArray = []
         #   add off button at zero so that clientId and index can be the same
         #   and because Off button has some different parameters
-        clientButtonArray.append( QtGui.QPushButton(self.verticalLayoutWidget) )
+        clientButtonArray.append(QtWidgets.QPushButton(self.verticalLayoutWidget))
         clientButtonArray[0].setText("Off")
         clientButtonArray[0].setCheckable(True)
         clientButtonArray[0].setChecked(True)
-        self.verticalLayout.addWidget(clientButtonArray[0])   
+        self.verticalLayout.addWidget(clientButtonArray[0])
         self.clientButtonGroup.addButton(clientButtonArray[0], 0)
-                
-        for clientId, clientName in storage.getClients():
-            clientButtonArray.append( QtGui.QPushButton(self.verticalLayoutWidget) )
-            clientButtonArray[clientId].setText( clientName )
+
+        for clientId, clientName in storage.get_clients():
+            clientButtonArray.append(QtWidgets.QPushButton(self.verticalLayoutWidget))
+            clientButtonArray[clientId].setText(clientName)
             clientButtonArray[clientId].setCheckable(True)
             self.verticalLayout.addWidget(clientButtonArray[clientId])
             self.clientButtonGroup.addButton(clientButtonArray[clientId], clientId)
-            
 
-        #   make logical container toggle
+        # make logical container toggle
         self.clientButtonGroup.setExclusive(True)
-        QtCore.QObject.connect(self.clientButtonGroup, QtCore.SIGNAL('buttonPressed(int)'), self.clientButtonGroupToggled)
-             
+        self.clientButtonGroup.buttonPressed[int].connect(self.client_button_group_toggled)
 
 
-
-    def addClientButton(self, clientId, clientName):
+    def add_client_button(self, client_id, client_name):
         """
         Adds new client button to button group layout
+        :param client_id: 
+        :param client_name: 
+        :return: 
         """
-        btn = QtGui.QPushButton(self.verticalLayoutWidget)
-        btn.setText( clientName )
-        btn.setCheckable(True)        
+        btn = QtWidgets.QPushButton(self.verticalLayoutWidget)
+        btn.setText(client_name)
+        btn.setCheckable(True)
         self.verticalLayout.addWidget(btn)
-        self.clientButtonGroup.addButton(btn, clientId)        
-        
+        self.clientButtonGroup.addButton(btn, client_id)
 
 
-    def updateClientButton(self, clientId, clientName):
+    def update_client_button(self, client_id, client_name):
         """
         Update client button text
+        :param client_id: 
+        :param client_name: 
+        :return: 
         """
-        btn = self.clientButtonGroup.button(clientId)
-        btn.setText(clientName)
-        
-                
-        
-    def removeClientButton(self, clientName):
+        btn = self.clientButtonGroup.button(client_id)
+        btn.setText(client_name)
+
+
+    def remove_client_button(self, client_name):
         """
         Remove client button to button group layout
-        """        
-        for i in reversed(range(self.verticalLayout.count())): 
-            widgetToRemove = self.verticalLayout.itemAt( i ).widget()
-            if( widgetToRemove.text() == clientName ):
+        :param client_name: 
+        :return: 
+        """
+        for i in reversed(range(self.verticalLayout.count())):
+            widget_to_remove = self.verticalLayout.itemAt(i).widget()
+            if widget_to_remove.text() == client_name:
                 # remove it from the layout list
-                self.verticalLayout.removeWidget( widgetToRemove )
+                self.verticalLayout.removeWidget(widget_to_remove)
                 # remove it from the gui
-                widgetToRemove.setParent( None )
+                widget_to_remove.setParent(None)
 
-        
-        
-        
+
     @QtCore.pyqtSlot()
-    def editClients(self):
+    def edit_clients(self):
         """
         Launch client list editor
+        :return: 
         """
-        dlgEditClients = DlgEditClients(self).exec_()
-
-
+        DlgEditClients(self).exec_()
 
     @QtCore.pyqtSlot()
     def report(self):
         """
         Launch time report
+        :return: 
         """
-        dlgReport = DlgReport(self).exec_()
-        
-        
-        
-    @QtCore.pyqtSlot(QtGui.QMainWindow, QtGui.QCloseEvent)
+        DlgReport(self).exec_()
+
+    @QtCore.pyqtSlot(QtWidgets.QMainWindow, QtGui.QCloseEvent)
     def closeEvent(self, event):
         """
-        override close event which expects event object
+        override close event
+        :param event: 
+        :return: 
         """
-        self.close() 
-        
-        
-    @QtCore.pyqtSlot(QtGui.QMainWindow)
+        self.close()
+
+    @QtCore.pyqtSlot()
     def close(self):
         """
         QApplication.aboutToQuit() doesn't send event and i haven't figured out how to
         so i resort to chaining closeEvent() -> close() like this for now.
         i could connect to clientTimer.clost() but i left it this way in case i wanted 
-        to do something else like confirm user close...
+        to do something else like confirm user close...        
+        :return: 
         """
-        self.clientTimer.close()   
-        
-        
-        
-    
+        self.clientTimer.close()
+
+
+
 def main():
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
     app.setStyle("plastique")
     form = TimeMachineApp()
-    
     app.aboutToQuit.connect(form.close)
-    #QtCore.QObject.connect(app, QtCore.SIGNAL('aboutToQuit(QtGui.QCloseEvent)'), form.closeEvent)
-    #app.aboutToQuit.connect[QtGui.QCloseEvent].connect(form.closeEvent)
-    
     form.show()
     sys.exit(app.exec_())
-    
-    
+
+
 if __name__ == '__main__':
     main()
 
