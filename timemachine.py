@@ -18,14 +18,17 @@
 #  MA 02110-1301, USA.
 #  
 #  
-from PyQt5 import QtWidgets, QtGui, QtCore, uic
+from PyQt5 import QtWidgets, QtGui, QtCore
 import sys
+import layout.main, layout.edit_clients, layout.report
+from inspect import getsourcefile
+import os.path
 
-
-
-Ui_MainWindow, QtBaseClass = uic.loadUiType('layout_main.ui')
-Ui_dlgEditClients, QtBaseClass = uic.loadUiType('layout_edit_clients.ui')
-Ui_dlgReport, QtBaseClass = uic.loadUiType('layout_report.ui')
+### if you want to load for ui files but i haven't figured out how to package and call
+### those when you aren't in local directory
+#Ui_MainWindow, QtBaseClass = uic.loadUiType('layout_main.ui')
+#Ui_dlgEditClients, QtBaseClass = uic.loadUiType('layout_edit_clients.ui')
+#Ui_dlgReport, QtBaseClass = uic.loadUiType('layout_report.ui')
 
 
 class Storage:
@@ -34,13 +37,18 @@ class Storage:
     """
 
     class DbConCursor(object):
+
         """
         Context manager for database connection cursor
         """
         def __init__(self):
+
+            # get the path of the script that launched the application
+            self.app_path = os.path.dirname(os.path.abspath(getsourcefile(lambda: 0)))
+
             import sqlite3
             try:
-                self.dbcon = sqlite3.connect('timemachine.db')
+                self.dbcon = sqlite3.connect(os.path.join(self.app_path, 'timemachine.db'))
             except sqlite3.Error as e:
                 raise e
 
@@ -55,22 +63,21 @@ class Storage:
 
 
     def __init__(self):
-        import sqlite3
+        self.create()
 
-        try:
-            self.dbcon = sqlite3.connect('timemachine.db')
 
-            with self.dbcon:
-                cursor = self.dbcon.cursor()
-                cursor.execute('''CREATE TABLE IF NOT EXISTS 
-                                  clients(clientId INTEGER NOT NULL PRIMARY KEY, clientName)''')
-                cursor.execute('''CREATE TABLE IF NOT EXISTS 
-                                  worked(clientId integer NOT NULL, dateWorkedInt text, secondsWorked float, 
-                                  FOREIGN KEY (clientId) REFERENCES clients(clientId) )''')
 
-        except sqlite3.Error as e:
-            print("Error {}:".format(e.args[0]))
-            raise e
+    def create(self):
+        """
+        Create db
+        """
+        with self.DbConCursor() as dbc:
+            dbc.execute('''CREATE TABLE IF NOT EXISTS 
+                              clients(clientId INTEGER NOT NULL PRIMARY KEY, clientName)''')
+            dbc.execute('''CREATE TABLE IF NOT EXISTS 
+                              worked(clientId integer NOT NULL, dateWorkedInt text, secondsWorked float, 
+                              FOREIGN KEY (clientId) REFERENCES clients(clientId) )''')
+
 
 
     def get_clients(self):
@@ -82,7 +89,7 @@ class Storage:
         try:
             with self.DbConCursor() as dbc:
                 dbc.row_factory = sqlite3.Row
-                dbc.execute('''xSELECT * from clients''')
+                dbc.execute('''SELECT * from clients''')
                 clients = dbc.fetchall()
                 return clients
         except Exception as e:
@@ -231,7 +238,7 @@ class ClientTimer:
         self.activeClientId = 0
 
 
-class DlgEditClients(QtWidgets.QDialog, Ui_dlgEditClients):
+class DlgEditClients(QtWidgets.QDialog, layout.edit_clients.Ui_dlgEditClients):
     """
     Dialog for editing clients
     """
@@ -297,7 +304,7 @@ class DlgEditClients(QtWidgets.QDialog, Ui_dlgEditClients):
 
 
 
-class DlgReport(QtWidgets.QDialog, Ui_dlgReport):
+class DlgReport(QtWidgets.QDialog, layout.report.Ui_dlgReport):
     """
     Dialog for viewing work report
     """
@@ -330,7 +337,7 @@ class DlgReport(QtWidgets.QDialog, Ui_dlgReport):
 
 
 
-class TimeMachineApp(QtWidgets.QMainWindow, Ui_MainWindow):
+class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
     def __init__(self, parent=None):
         super(TimeMachineApp, self).__init__(parent)
         self.setupUi(self)
@@ -479,6 +486,7 @@ class TimeMachineApp(QtWidgets.QMainWindow, Ui_MainWindow):
 
 
 def main():
+
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle("plastique")
     form = TimeMachineApp()
