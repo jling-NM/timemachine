@@ -15,7 +15,7 @@
    <string>Time Machine</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="timemachine.qrc">
+   <iconset>
     <normaloff>:/images/timemachine_16x16.png</normaloff>:/images/timemachine_16x16.png</iconset>
   </property>
   <widget class="QWidget" name="centralwidget">
@@ -50,7 +50,7 @@
    </property>
    <widget class="QMenu" name="menuSetting">
     <property name="title">
-     <string>File</string>
+     <string>&amp;File</string>
     </property>
     <addaction name="actionReport"/>
     <addaction name="actionEdit_Clients"/>
@@ -60,7 +60,7 @@
   </widget>
   <action name="actionEdit_Clients">
    <property name="text">
-    <string>Client List</string>
+    <string>&amp;Client List</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+E</string>
@@ -68,7 +68,7 @@
   </action>
   <action name="actionExit">
    <property name="text">
-    <string>Exit</string>
+    <string>&amp;Exit</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Q</string>
@@ -76,7 +76,7 @@
   </action>
   <action name="actionReport">
    <property name="text">
-    <string>Report</string>
+    <string>&amp;Report</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+R</string>

@@ -52,12 +52,12 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "Time Machine"))
-        self.menuSetting.setTitle(_translate("MainWindow", "File"))
-        self.actionEdit_Clients.setText(_translate("MainWindow", "Client List"))
+        self.menuSetting.setTitle(_translate("MainWindow", "&File"))
+        self.actionEdit_Clients.setText(_translate("MainWindow", "&Client List"))
         self.actionEdit_Clients.setShortcut(_translate("MainWindow", "Ctrl+E"))
-        self.actionExit.setText(_translate("MainWindow", "Exit"))
+        self.actionExit.setText(_translate("MainWindow", "&Exit"))
         self.actionExit.setShortcut(_translate("MainWindow", "Ctrl+Q"))
-        self.actionReport.setText(_translate("MainWindow", "Report"))
+        self.actionReport.setText(_translate("MainWindow", "&Report"))
         self.actionReport.setShortcut(_translate("MainWindow", "Ctrl+R"))
 
 import timemachine_rc
