@@ -31,6 +31,18 @@ import os.path
 #Ui_dlgReport, QtBaseClass = uic.loadUiType('layout_report.ui')
 
 
+#class NotesTextEdit(QtGui.QTextEdit):
+    #"""
+    #Subclass text field to use focus events
+    #"""
+    #def focusInEvent(self, event):
+        #print('focus in event')
+        #print(event)
+        ## do custom stuff
+        #super(NotesTextEdit, self).focusInEvent(event)
+    
+    
+    
 class Storage:
     """
     Data interface
@@ -312,7 +324,11 @@ class DlgReport(QtWidgets.QDialog, layout.report.Ui_dlgReport):
         QtWidgets.QDialog.__init__(self)
         self.setupUi(self)
         self.storage = parent.storage
+        # set handler when date is clicked
         self.calendarWidget.clicked[QtCore.QDate].connect(self.generate_report)
+        # on init, select current date and display that as default
+        self.generate_report(QtCore.QDate.currentDate())
+
 
     @QtCore.pyqtSlot("QDate")
     def generate_report(self, date):
@@ -354,7 +370,10 @@ class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
 
         # init timer
         self.clientTimer = ClientTimer(self.storage)
-
+        
+        # session persistence
+        self.settings = QtCore.QSettings()
+        
         # done
         self.statusBar().showMessage('Ready')
 
@@ -384,28 +403,34 @@ class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
         #   init logical container for client buttons; not sure if this is worth the trouble except for id feature
         self.clientButtonGroup = QtWidgets.QButtonGroup(self)
 
-        #   add buttons to layout and logical contaner
-        clientButtonArray = []
-        #   add off button at zero so that clientId and index can be the same
-        #   and because Off button has some different parameters
-        clientButtonArray.append(QtWidgets.QPushButton(self.verticalLayoutWidget))
-        clientButtonArray[0].setText("Off")
-        clientButtonArray[0].setCheckable(True)
-        clientButtonArray[0].setChecked(True)
-        self.verticalLayout.addWidget(clientButtonArray[0])
-        self.clientButtonGroup.addButton(clientButtonArray[0], 0)
+        ##   add buttons to layout and logical contaner
+        #clientButtonArray = []
+        ##   add off button at zero so that clientId and index can be the same
+        ##   and because Off button has some different parameters
+        #clientButtonArray.append(QtWidgets.QPushButton(self.verticalLayoutWidget))
+        #clientButtonArray[0].setText("Off")
+        #clientButtonArray[0].setCheckable(True)
+        #clientButtonArray[0].setChecked(True)
+        #self.verticalLayout.addWidget(clientButtonArray[0])
+        #self.clientButtonGroup.addButton(clientButtonArray[0], 0)
 
+        self.add_client_button(0, 'Off')
+        
+        #for clientId, clientName in storage.get_clients():
+            #clientButtonArray.append(QtWidgets.QPushButton(self.verticalLayoutWidget))
+            #clientButtonArray[clientId].setText(clientName)
+            #clientButtonArray[clientId].setCheckable(True)
+            #self.verticalLayout.addWidget(clientButtonArray[clientId])
+            #self.clientButtonGroup.addButton(clientButtonArray[clientId], clientId)
+
+        # add client buttons for each client
         for clientId, clientName in storage.get_clients():
-            clientButtonArray.append(QtWidgets.QPushButton(self.verticalLayoutWidget))
-            clientButtonArray[clientId].setText(clientName)
-            clientButtonArray[clientId].setCheckable(True)
-            self.verticalLayout.addWidget(clientButtonArray[clientId])
-            self.clientButtonGroup.addButton(clientButtonArray[clientId], clientId)
-
+            self.add_client_button(clientId, clientName)
+        
         # make logical container toggle
         self.clientButtonGroup.setExclusive(True)
         self.clientButtonGroup.buttonPressed[int].connect(self.client_button_group_toggled)
-
+        
 
     def add_client_button(self, client_id, client_name):
         """
@@ -417,6 +442,9 @@ class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
         btn = QtWidgets.QPushButton(self.verticalLayoutWidget)
         btn.setText(client_name)
         btn.setCheckable(True)
+        if client_id == 0:
+            btn.setChecked(True)
+        #btn.setFocusPolicy(QtCore.Qt.TabFocus)
         self.verticalLayout.addWidget(btn)
         self.clientButtonGroup.addButton(btn, client_id)
 
@@ -484,15 +512,58 @@ class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
         self.clientTimer.close()
 
 
+    def show_first_time(self):
+        """
+        The first time we identify db has no clients
+        """
+        if self.settings.value('first_time_run', True, type=bool):
+            
+            # no clients in db
+            if not len(self.storage.get_clients()):
+                
+                msg_button_reply = QtWidgets.QMessageBox.question(
+                                    self, 
+                                    'Time Machine', 
+                                    'Time Machine has no clients yet.\nAdd Clients now?', 
+                                    QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Yes, 
+                                    QtWidgets.QMessageBox.Yes )
+                                    
+                if msg_button_reply == QtWidgets.QMessageBox.Yes:
+                    self.edit_clients()
+            
+           
+        # update settings; no longer the first time
+        self.settings.setValue('first_time_run', False)
+        # this writes to native storage
+        del self.settings
 
+    #def focusOutEvent(self, event):
+        #print('lost focus')
+        #print(event.reason())
+        
+    #def focusInEvent(self, event):
+        #print('in focus')
+                
+                
 def main():
 
     app = QtWidgets.QApplication(sys.argv)
+    # app style
     app.setStyle("plastique")
-    form = TimeMachineApp()
-    app.aboutToQuit.connect(form.close)
+    # app setting in general but specifically so that call to QSettings() uses meaningful path for settings
+    app.setOrganizationName("jling_projects")
+    app.setApplicationName("Time Machine")
+    
+    appWin = TimeMachineApp()
+    # connect main window close and app close events
+    app.aboutToQuit.connect(appWin.close)
+    
     try:
-        form.show()
+        appWin.show()
+        appWin.show_first_time()
+        # disable resizing or stretching of main window
+        appWin.setFixedSize(appWin.size());
+        
     except Exception as e:
         QtWidgets.QMessageBox.information("QCalendarWidget Date Selected", e)
 
