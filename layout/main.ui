@@ -40,7 +40,7 @@
       <height>161</height>
      </rect>
     </property>
-    <layout class="QVBoxLayout" name="verticalLayout">
+    <layout class="QVBoxLayout" name="clientBtnVerticalLayout">
      <property name="spacing">
       <number>0</number>
      </property>
@@ -49,31 +49,16 @@
      </property>
     </layout>
    </widget>
-   <widget class="QTextEdit" name="textEdit">
+   <widget class="QWidget" name="verticalLayoutWidget_2">
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>184</y>
+      <y>170</y>
       <width>221</width>
-      <height>81</height>
+      <height>91</height>
      </rect>
     </property>
-    <property name="focusPolicy">
-     <enum>Qt::ClickFocus</enum>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>168</y>
-      <width>71</width>
-      <height>16</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Day Notes:</string>
-    </property>
+    <layout class="QVBoxLayout" name="notesVerticalLayout"/>
    </widget>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>

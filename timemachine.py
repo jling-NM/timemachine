@@ -31,17 +31,16 @@ import os.path
 #Ui_dlgReport, QtBaseClass = uic.loadUiType('layout_report.ui')
 
 
-#class NotesTextEdit(QtGui.QTextEdit):
-    #"""
-    #Subclass text field to use focus events
-    #"""
-    #def focusInEvent(self, event):
-        #print('focus in event')
-        #print(event)
-        ## do custom stuff
-        #super(NotesTextEdit, self).focusInEvent(event)
+class NotesTextEdit(QtWidgets.QPlainTextEdit):
+    """
+    Subclass text field to use focus events
+    """
+    lostFocus = QtCore.pyqtSignal('QString')
     
-    
+    def focusOutEvent(self, event):
+        self.lostFocus.emit(self.toPlainText())
+        #super(NotesTextEdit, self).focusOutEvent(event)
+       
     
 class Storage:
     """
@@ -89,7 +88,8 @@ class Storage:
             dbc.execute('''CREATE TABLE IF NOT EXISTS 
                               worked(clientId integer NOT NULL, dateWorkedInt text, secondsWorked float, 
                               FOREIGN KEY (clientId) REFERENCES clients(clientId) )''')
-
+            dbc.execute('''CREATE TABLE IF NOT EXISTS 
+                              notes(dateNote text, note)''')
 
 
     def get_clients(self):
@@ -101,7 +101,7 @@ class Storage:
         try:
             with self.DbConCursor() as dbc:
                 dbc.row_factory = sqlite3.Row
-                dbc.execute('''SELECT * from clients''')
+                dbc.execute('SELECT * from clients')
                 clients = dbc.fetchall()
                 return clients
         except Exception as e:
@@ -174,6 +174,41 @@ class Storage:
             dbc.execute("UPDATE clients SET clientName = ? WHERE clientId = ?", ([client_name, client_id]))
 
 
+    def get_note(self, date_str):
+        """
+        Retrieve any notes for the date
+        """
+        with self.DbConCursor() as dbc:
+            dbc.execute("SELECT note FROM notes WHERE dateNote == ?", ([date_str]))
+            notes_txt = dbc.fetchone()[0]
+            
+        return notes_txt
+        
+        
+    def update_note(self, notes_txt):
+        """
+        Update day notes
+        :param notes_txt: 
+        :return: void
+        """
+        import datetime
+        current_date_str = datetime.datetime.now().strftime("%Y%m%d")
+
+        with self.DbConCursor() as dbc:
+            dbc.execute("SELECT dateNote FROM notes WHERE dateNote == ?", ([current_date_str]))
+            note_exists = dbc.fetchone()
+            
+            if note_exists:
+                if len(notes_txt):
+                    dbc.execute("UPDATE notes SET note = ? WHERE dateNote = ?", (notes_txt, current_date_str))
+                else:
+                    dbc.execute("DELETE FROM notes WHERE dateNote = ?", ([current_date_str]))                    
+            else:
+                dbc.execute("INSERT INTO notes (dateNote, note) VALUES (?,?)", (current_date_str, notes_txt))
+
+    
+    
+    
     def get_report(self, date_str):
         """
         Get worked data for date string
@@ -352,6 +387,11 @@ class DlgReport(QtWidgets.QDialog, layout.report.Ui_dlgReport):
             self.lblReport.setText("No work data for " + date.toString())
 
 
+        # Any notes?
+        notes = self.storage.get_note(date.toString("yyyyMMdd"))
+        if len(notes):
+            self.lblReport.setText(self.lblReport.text() + "====================== Notes:\n{}".format(notes))
+
 
 class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
     def __init__(self, parent=None):
@@ -365,8 +405,9 @@ class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
         # init storage
         self.storage = Storage()
 
-        # add client buttons
-        self.setup_client_buttons(self.storage)
+        # runtime layout
+        self.runtime_layout()
+        #self.setup_client_buttons(self.storage)
 
         # init timer
         self.clientTimer = ClientTimer(self.storage)
@@ -411,7 +452,7 @@ class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
         #clientButtonArray[0].setText("Off")
         #clientButtonArray[0].setCheckable(True)
         #clientButtonArray[0].setChecked(True)
-        #self.verticalLayout.addWidget(clientButtonArray[0])
+        #self.clientBtnVerticalLayout.addWidget(clientButtonArray[0])
         #self.clientButtonGroup.addButton(clientButtonArray[0], 0)
 
         self.add_client_button(0, 'Off')
@@ -420,7 +461,7 @@ class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
             #clientButtonArray.append(QtWidgets.QPushButton(self.verticalLayoutWidget))
             #clientButtonArray[clientId].setText(clientName)
             #clientButtonArray[clientId].setCheckable(True)
-            #self.verticalLayout.addWidget(clientButtonArray[clientId])
+            #self.clientBtnVerticalLayout.addWidget(clientButtonArray[clientId])
             #self.clientButtonGroup.addButton(clientButtonArray[clientId], clientId)
 
         # add client buttons for each client
@@ -431,7 +472,42 @@ class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
         self.clientButtonGroup.setExclusive(True)
         self.clientButtonGroup.buttonPressed[int].connect(self.client_button_group_toggled)
         
+        self.clientBtnVerticalLayout.addWidget(NotesTextEdit(self.verticalLayoutWidget))
+        
+    def runtime_layout(self):
+        """
+        Client buttons must be dynamic
+        This is a function that clears the client buttons if needed
+        then adds client buttons to the form
+        """
 
+        # ####   add client buttons from storage list #####
+
+        #   init logical container for client buttons; not sure if this is worth the trouble except for id feature
+        self.clientButtonGroup = QtWidgets.QButtonGroup(self)
+        
+        self.add_client_button(0, 'Off')
+        # add client buttons for each client
+        for clientId, clientName in self.storage.get_clients():
+            self.add_client_button(clientId, clientName)
+        
+        # make logical container toggle
+        self.clientButtonGroup.setExclusive(True)
+        self.clientButtonGroup.buttonPressed[int].connect(self.client_button_group_toggled)
+        
+        # notes editor
+        self.notesVerticalLayout.addWidget(QtWidgets.QLabel("Day Notes:"))
+        notesTextEdit = NotesTextEdit()
+        notesTextEdit.lostFocus.connect(self.save_notes)
+        # insert notes from storage
+        notes = self.storage.get_note(QtCore.QDate.currentDate().toString("yyyyMMdd"))
+        if notes:
+            notesTextEdit.setPlainText(notes)
+        self.notesVerticalLayout.addWidget(notesTextEdit)
+
+
+        
+        
     def add_client_button(self, client_id, client_name):
         """
         Adds new client button to button group layout
@@ -445,7 +521,7 @@ class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
         if client_id == 0:
             btn.setChecked(True)
         #btn.setFocusPolicy(QtCore.Qt.TabFocus)
-        self.verticalLayout.addWidget(btn)
+        self.clientBtnVerticalLayout.addWidget(btn)
         self.clientButtonGroup.addButton(btn, client_id)
 
 
@@ -466,15 +542,25 @@ class TimeMachineApp(QtWidgets.QMainWindow, layout.main.Ui_MainWindow):
         :param client_name: 
         :return: 
         """
-        for i in reversed(range(self.verticalLayout.count())):
-            widget_to_remove = self.verticalLayout.itemAt(i).widget()
+        for i in reversed(range(self.clientBtnVerticalLayout.count())):
+            widget_to_remove = self.clientBtnVerticalLayout.itemAt(i).widget()
             if widget_to_remove.text() == client_name:
                 # remove it from the layout list
-                self.verticalLayout.removeWidget(widget_to_remove)
+                self.clientBtnVerticalLayout.removeWidget(widget_to_remove)
                 # remove it from the gui
                 widget_to_remove.setParent(None)
 
 
+
+
+    @QtCore.pyqtSlot('QString')
+    def save_notes(self, notes_txt):
+        """
+        Save notes to storage
+        """
+        self.storage.update_note(notes_txt)
+        
+                        
     @QtCore.pyqtSlot()
     def edit_clients(self):
         """
