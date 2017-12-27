@@ -178,9 +178,13 @@ class Storage:
         """
         Retrieve any notes for the date
         """
+        notes_txt = ''
+        
         with self.DbConCursor() as dbc:
             dbc.execute("SELECT note FROM notes WHERE dateNote == ?", ([date_str]))
-            notes_txt = dbc.fetchone()[0]
+            ret_val = dbc.fetchone()
+            if ret_val:
+                notes_txt = ret_val[0]
             
         return notes_txt
         
